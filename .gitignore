@@ -1,0 +1,5 @@
+node_modules/
+npm-debug.log*
+# .env
+.bedrock-auth-cache/
+.mcbot-bedrock-auth-cache/
