@@ -1,5 +1,6 @@
 const bedrock = require('bedrock-protocol');
 const { Vec3 } = require('vec3');
+const dns = require('dns').promises;
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -78,6 +79,21 @@ function normalizeBedrockVersion(rawVersion) {
 }
 
 const MC_VERSION = normalizeBedrockVersion(MC_VERSION_RAW);
+
+function isIpv4Literal(host) {
+  return /^\d{1,3}(\.\d{1,3}){3}$/.test(host);
+}
+
+async function resolveServerHost(host) {
+  if (isIpv4Literal(host)) return host;
+
+  const result = await dns.lookup(host, { family: 4 });
+  if (!result?.address) {
+    throw new Error(`DNS lookup returned no IPv4 address for ${host}`);
+  }
+
+  return result.address;
+}
 
 function resolveAuthCacheDir() {
   const customDir = String(BOT_CONFIG.MC_AUTH_CACHE_DIR || '').trim();
@@ -2256,7 +2272,7 @@ function attachLifecycleHandlers(client, sessionId) {
   });
 }
 
-function createAndStartClient() {
+async function createAndStartClient() {
   state.sessionId += 1;
   const sessionId = state.sessionId;
   state.authBlocked = false;
@@ -2268,9 +2284,19 @@ function createAndStartClient() {
     log('startup', `Requested Bedrock ${MC_VERSION_RAW}; using compatible protocol ${MC_VERSION}.`);
   }
 
+  let connectHost = MC_HOST;
+
+  try {
+    connectHost = await resolveServerHost(MC_HOST);
+  } catch (err) {
+    log('startup', `Failed to resolve ${MC_HOST} to IPv4: ${err.message}`);
+    scheduleReconnect('dns-resolution-failed');
+    return;
+  }
+
   log(
     'startup',
-    `Connecting to ${MC_HOST}:${MC_PORT} as ${MC_USERNAME} (offline=${MC_OFFLINE}, version=${MC_VERSION}, connectTimeout=${MC_CONNECT_TIMEOUT_MS}ms, authProfile=${MC_AUTH_INPUT_PROFILE}, chatReplies=${MC_ENABLE_CHAT_RESPONSES})`
+    `Connecting to ${MC_HOST}:${MC_PORT} as ${MC_USERNAME} via ${connectHost} (offline=${MC_OFFLINE}, version=${MC_VERSION}, connectTimeout=${MC_CONNECT_TIMEOUT_MS}ms, authProfile=${MC_AUTH_INPUT_PROFILE}, chatReplies=${MC_ENABLE_CHAT_RESPONSES})`
   );
   log(
     'startup',
@@ -2284,7 +2310,7 @@ function createAndStartClient() {
   }
 
   const client = bedrock.createClient({
-    host: MC_HOST,
+    host: connectHost,
     port: MC_PORT,
     username: MC_USERNAME,
     offline: MC_OFFLINE,
@@ -2310,6 +2336,12 @@ function createAndStartClient() {
 
 process.on('uncaughtException', (err) => {
   log('process', `Uncaught exception: ${err.stack || err.message}`);
+  if (String(err?.message || '').includes('Connect timed out')) {
+    try {
+      state.client?.close('connect-timeout');
+    } catch (_) {}
+    scheduleReconnect('connect-timeout');
+  }
 });
 
 process.on('unhandledRejection', (reason) => {
