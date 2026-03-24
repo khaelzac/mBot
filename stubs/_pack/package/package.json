@@ -1,0 +1,6 @@
+{
+  "name": "raknet-native",
+  "version": "1.0.3-termux-stub",
+  "main": "index.js",
+  "private": true
+}

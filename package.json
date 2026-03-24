@@ -12,7 +12,7 @@
     "start": "node index.js"
   },
   "overrides": {
-    "raknet-native": "file:./stubs/raknet-native"
+    "raknet-native": "file:./stubs/raknet-native-1.0.3-termux-stub.tgz"
   },
   "dependencies": {
     "bedrock-protocol": "latest",

@@ -29,6 +29,8 @@ cp -r /sdcard/Download/McBot .
 cd McBot
 ```
 
+If you run `npm install` from `/sdcard`, `/storage/emulated/0`, or `Download`, Android storage permissions can block package installs. Keep the project under `~/McBot` before installing.
+
 ## 3. Edit the config in `index.js`
 
 Open the config block at the top of `index.js` and set:
