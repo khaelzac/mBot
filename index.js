@@ -9,13 +9,14 @@ const BOT_CONFIG = Object.freeze({
   MC_PORT: 50261,
   MC_USERNAME: 'Jeyms0108',
   MC_VERSION: '1.26.3.1',
-  MC_CONNECT_TIMEOUT_MS: 60000,
+  MC_CONNECT_TIMEOUT_MS: 120000,
   MC_RECONNECT_DELAY_MS: 5000,
   MC_OFFLINE: false,
   MC_FOLLOW_RANGE: 100,
   MC_AUTH_INPUT_PROFILE: 'touch_minimal',
   MC_FORCE_MOVE_PLAYER: false,
   MC_ENABLE_CHAT_RESPONSES: false,
+  MC_USE_RAKNET_WORKERS: false,
   MC_AUTH_CACHE_DIR: ''
 });
 
@@ -30,6 +31,7 @@ const MC_FORCE_MOVE_PLAYER = Boolean(BOT_CONFIG.MC_FORCE_MOVE_PLAYER);
 const MC_AUTH_INPUT_PROFILE = String(BOT_CONFIG.MC_AUTH_INPUT_PROFILE || 'touch_minimal').trim();
 const MC_FOLLOW_RANGE = Number(BOT_CONFIG.MC_FOLLOW_RANGE ?? 48);
 const MC_ENABLE_CHAT_RESPONSES = Boolean(BOT_CONFIG.MC_ENABLE_CHAT_RESPONSES);
+const MC_USE_RAKNET_WORKERS = Boolean(BOT_CONFIG.MC_USE_RAKNET_WORKERS);
 const IS_TERMUX = /com\.termux[\\/]files[\\/]usr$/.test(process.env.PREFIX || '') || !!process.env.TERMUX_VERSION;
 const AUTH_CACHE_DIR = resolveAuthCacheDir();
 
@@ -2245,6 +2247,12 @@ function attachLifecycleHandlers(client, sessionId) {
   client.on('error', (err) => {
     if (sessionId !== state.sessionId) return;
     log('error', `Client error: ${err.message}`);
+    if (err.message === 'Connect timed out') {
+      log(
+        'error',
+        `No Bedrock UDP response from ${MC_HOST}:${MC_PORT}. Verify the server is online, the Bedrock port is correct, and the device/network allows outbound UDP.`
+      );
+    }
   });
 }
 
@@ -2264,7 +2272,10 @@ function createAndStartClient() {
     'startup',
     `Connecting to ${MC_HOST}:${MC_PORT} as ${MC_USERNAME} (offline=${MC_OFFLINE}, version=${MC_VERSION}, connectTimeout=${MC_CONNECT_TIMEOUT_MS}ms, authProfile=${MC_AUTH_INPUT_PROFILE}, chatReplies=${MC_ENABLE_CHAT_RESPONSES})`
   );
-  log('startup', `Runtime=${process.platform}${IS_TERMUX ? '/termux' : ''} authCache=${AUTH_CACHE_DIR}`);
+  log(
+    'startup',
+    `Runtime=${process.platform}${IS_TERMUX ? '/termux' : ''} authCache=${AUTH_CACHE_DIR} raknetWorkers=${MC_USE_RAKNET_WORKERS}`
+  );
 
   try {
     fs.mkdirSync(AUTH_CACHE_DIR, { recursive: true });
@@ -2281,6 +2292,7 @@ function createAndStartClient() {
     connectTimeout: MC_CONNECT_TIMEOUT_MS,
     skipPing: true,
     raknetBackend: 'jsp-raknet',
+    useRaknetWorkers: MC_USE_RAKNET_WORKERS,
     profilesFolder: AUTH_CACHE_DIR,
     conLog: null,
     onMsaCode: (data) => {
