@@ -1,9 +1,98 @@
-const bedrock = require('bedrock-protocol');
-const { Vec3 } = require('vec3');
-const dns = require('dns').promises;
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const dns = require('dns').promises;
+
+ensureDependencyPatches();
+
+const bedrock = require('bedrock-protocol');
+const { Vec3 } = require('vec3');
+
+function patchDependencyFile(filePath, replacements) {
+  if (!fs.existsSync(filePath)) return;
+
+  let content = fs.readFileSync(filePath, 'utf8');
+  let changed = false;
+
+  for (const { from, to } of replacements) {
+    if (content.includes(to)) continue;
+    if (!content.includes(from)) {
+      throw new Error(`Patch anchor not found in ${filePath}: ${from.split('\n')[0]}`);
+    }
+
+    content = content.replace(from, to);
+    changed = true;
+  }
+
+  if (changed) {
+    fs.writeFileSync(filePath, content, 'utf8');
+  }
+}
+
+function ensureDependencyPatches() {
+  const rootDir = __dirname;
+
+  try {
+    patchDependencyFile(path.join(rootDir, 'node_modules', 'jsp-raknet', 'js', 'Client.js'), [
+      {
+        from: "const RAKNET_PROTOCOL = 10;",
+        to: "const DEFAULT_RAKNET_PROTOCOL = 10;"
+      },
+      {
+        from: "    constructor(hostname, port) {",
+        to: "    constructor(hostname, port, options = {}) {"
+      },
+      {
+        from: "        this.port = port;\n        this.address = new InetAddress_1.default(this.hostname, this.port);",
+        to: "        this.port = port;\n        this.protocolVersion = Number(options.protocolVersion) || DEFAULT_RAKNET_PROTOCOL;\n        this.address = new InetAddress_1.default(this.hostname, this.port);"
+      },
+      {
+        from: "        packet.protocol = RAKNET_PROTOCOL;",
+        to: "        packet.protocol = this.protocolVersion;"
+      },
+      {
+        from: "        this.emit('connecting', { mtuSize: packet.mtuSize, protocol: RAKNET_PROTOCOL });",
+        to: "        this.emit('connecting', { mtuSize: packet.mtuSize, protocol: this.protocolVersion });"
+      }
+    ]);
+
+    patchDependencyFile(path.join(rootDir, 'node_modules', 'bedrock-protocol', 'src', 'rak.js'), [
+      {
+        from: "  constructor (options = {}) {",
+        to: "  constructor (options = {}, client) {"
+      },
+      {
+        from: "    this.onEncapsulated = () => { }\n    if (options.useWorkers) {",
+        to: "    this.onEncapsulated = () => { }\n    this.protocolVersion = client?.versionGreaterThanOrEqualTo('1.19.30') ? 11 : 10\n    if (options.useWorkers) {"
+      },
+      {
+        from: "    this.worker = ConnWorker.connect(host, port)",
+        to: "    this.worker = ConnWorker.connect(host, port, this.protocolVersion)"
+      },
+      {
+        from: "    this.raknet = new Client(host, port)",
+        to: "    this.raknet = new Client(host, port, { protocolVersion: this.protocolVersion })"
+      },
+      {
+        from: "      if (!this.raknet) this.raknet = new Client(this.options.host, this.options.port)",
+        to: "      if (!this.raknet) this.raknet = new Client(this.options.host, this.options.port, { protocolVersion: this.protocolVersion })"
+      }
+    ]);
+
+    patchDependencyFile(path.join(rootDir, 'node_modules', 'bedrock-protocol', 'src', 'rakWorker.js'), [
+      {
+        from: "function connect (host, port) {\n  if (isMainThread) {\n    const worker = new Worker(__filename)\n    worker.postMessage({ type: 'connect', host, port })\n    return worker\n  }\n}",
+        to: "function connect (host, port, protocolVersion = 10) {\n  if (isMainThread) {\n    const worker = new Worker(__filename)\n    worker.postMessage({ type: 'connect', host, port, protocolVersion })\n    return worker\n  }\n}"
+      },
+      {
+        from: "      const { host, port } = evt\n      raknet = new Client(host, port)\n",
+        to: "      const { host, port, protocolVersion } = evt\n      raknet = new Client(host, port, { protocolVersion })\n"
+      }
+    ]);
+  } catch (err) {
+    console.warn(`[startup] Dependency patch warning: ${err.message}`);
+  }
+}
 
 const BOT_CONFIG = Object.freeze({
   MC_HOST: 'seungheun.aternos.me',
@@ -17,7 +106,7 @@ const BOT_CONFIG = Object.freeze({
   MC_AUTH_INPUT_PROFILE: 'touch_minimal',
   MC_FORCE_MOVE_PLAYER: false,
   MC_ENABLE_CHAT_RESPONSES: false,
-  MC_USE_RAKNET_WORKERS: false,
+  MC_USE_RAKNET_WORKERS: true,
   MC_AUTH_CACHE_DIR: ''
 });
 
