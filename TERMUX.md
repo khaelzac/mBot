@@ -29,28 +29,23 @@ cp -r /sdcard/Download/McBot .
 cd McBot
 ```
 
-## 3. Create the env file
+## 3. Edit the config in `index.js`
 
-```bash
-cp .env.example .env
-nano .env
-```
-
-Required values:
+Open the config block at the top of `index.js` and set:
 
 - `MC_HOST`
 - `MC_PORT`
 - `MC_USERNAME`
 
-Recommended for Android:
+Recommended for Android / Termux:
 
-- `MC_CONNECT_TIMEOUT_MS=60000`
-- `MC_AUTH_INPUT_PROFILE=touch_minimal`
+- `MC_CONNECT_TIMEOUT_MS: 60000`
+- `MC_AUTH_INPUT_PROFILE: 'touch_minimal'`
 
-If the server requires Microsoft / Xbox login:
+If the server requires Microsoft / Xbox login, set:
 
-```env
-MC_OFFLINE=false
+```js
+MC_OFFLINE: false
 ```
 
 ## 4. Install dependencies
@@ -82,7 +77,7 @@ Timed out before join:
 
 `not_authenticated`:
 
-- Set `MC_OFFLINE=false`
+- Set `MC_OFFLINE: false` in `index.js`
 - Restart and complete the Microsoft login code flow
 
 Permission errors:
@@ -96,9 +91,4 @@ Missing module errors:
 npm install
 ```
 
-Native build errors:
-
-```bash
-pkg install python make clang -y
-npm install
-```
+This project forces `bedrock-protocol` to use the pure-JS `jsp-raknet` backend and overrides `raknet-native`, so Termux should not need to build that native module during install.

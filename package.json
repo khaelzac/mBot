@@ -11,9 +11,11 @@
   "scripts": {
     "start": "node index.js"
   },
+  "overrides": {
+    "raknet-native": "file:./stubs/raknet-native"
+  },
   "dependencies": {
     "bedrock-protocol": "latest",
-    "dotenv": "^16.6.1",
     "prismarine-chat": "latest",
     "vec3": "latest"
   }

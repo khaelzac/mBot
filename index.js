@@ -1,49 +1,65 @@
-require('dotenv').config();
-
 const bedrock = require('bedrock-protocol');
 const { Vec3 } = require('vec3');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const REQUIRED_ENV = ['MC_HOST', 'MC_PORT', 'MC_USERNAME'];
-const missing = REQUIRED_ENV.filter((key) => !process.env[key]);
-if (missing.length > 0) {
-  console.error(`[startup] Missing required environment variables: ${missing.join(', ')}`);
-  process.exit(1);
-}
+const BOT_CONFIG = Object.freeze({
+  MC_HOST: 'seungheun.aternos.me',
+  MC_PORT: 50261,
+  MC_USERNAME: 'Jeyms0108',
+  MC_VERSION: '1.26.3.1',
+  MC_CONNECT_TIMEOUT_MS: 60000,
+  MC_RECONNECT_DELAY_MS: 5000,
+  MC_OFFLINE: false,
+  MC_FOLLOW_RANGE: 100,
+  MC_AUTH_INPUT_PROFILE: 'touch_minimal',
+  MC_FORCE_MOVE_PLAYER: false,
+  MC_ENABLE_CHAT_RESPONSES: false,
+  MC_AUTH_CACHE_DIR: ''
+});
 
-const MC_HOST = process.env.MC_HOST;
-const MC_PORT = Number.parseInt(process.env.MC_PORT, 10);
-const MC_USERNAME = process.env.MC_USERNAME;
-const MC_CONNECT_TIMEOUT_MS = Number.parseInt(process.env.MC_CONNECT_TIMEOUT_MS || '30000', 10);
-const MC_RECONNECT_DELAY_MS = Number.parseInt(process.env.MC_RECONNECT_DELAY_MS || '5000', 10);
-const MC_OFFLINE = String(process.env.MC_OFFLINE || 'true').toLowerCase() !== 'false';
-const MC_VERSION_RAW = (process.env.MC_VERSION || '1.26.3.1').trim();
-const MC_FORCE_MOVE_PLAYER = String(process.env.MC_FORCE_MOVE_PLAYER || 'false').toLowerCase() === 'true';
-const MC_AUTH_INPUT_PROFILE = (process.env.MC_AUTH_INPUT_PROFILE || 'touch_minimal').trim();
-const MC_FOLLOW_RANGE = Number.parseInt(process.env.MC_FOLLOW_RANGE || '48', 10);
-const MC_ENABLE_CHAT_RESPONSES = String(process.env.MC_ENABLE_CHAT_RESPONSES || 'false').toLowerCase() === 'true';
+const MC_HOST = String(BOT_CONFIG.MC_HOST || '').trim();
+const MC_PORT = Number(BOT_CONFIG.MC_PORT);
+const MC_USERNAME = String(BOT_CONFIG.MC_USERNAME || '').trim();
+const MC_CONNECT_TIMEOUT_MS = Number(BOT_CONFIG.MC_CONNECT_TIMEOUT_MS ?? 30000);
+const MC_RECONNECT_DELAY_MS = Number(BOT_CONFIG.MC_RECONNECT_DELAY_MS ?? 5000);
+const MC_OFFLINE = Boolean(BOT_CONFIG.MC_OFFLINE);
+const MC_VERSION_RAW = String(BOT_CONFIG.MC_VERSION || '1.26.3.1').trim();
+const MC_FORCE_MOVE_PLAYER = Boolean(BOT_CONFIG.MC_FORCE_MOVE_PLAYER);
+const MC_AUTH_INPUT_PROFILE = String(BOT_CONFIG.MC_AUTH_INPUT_PROFILE || 'touch_minimal').trim();
+const MC_FOLLOW_RANGE = Number(BOT_CONFIG.MC_FOLLOW_RANGE ?? 48);
+const MC_ENABLE_CHAT_RESPONSES = Boolean(BOT_CONFIG.MC_ENABLE_CHAT_RESPONSES);
 const IS_TERMUX = /com\.termux[\\/]files[\\/]usr$/.test(process.env.PREFIX || '') || !!process.env.TERMUX_VERSION;
 const AUTH_CACHE_DIR = resolveAuthCacheDir();
 
+if (!MC_HOST) {
+  console.error('[startup] Missing MC_HOST in BOT_CONFIG');
+  process.exit(1);
+}
+
+if (!MC_USERNAME) {
+  console.error('[startup] Missing MC_USERNAME in BOT_CONFIG');
+  process.exit(1);
+}
+
 if (!Number.isInteger(MC_PORT) || MC_PORT < 1 || MC_PORT > 65535) {
-  console.error(`[startup] Invalid MC_PORT: ${process.env.MC_PORT}`);
+  console.error(`[startup] Invalid MC_PORT in BOT_CONFIG: ${BOT_CONFIG.MC_PORT}`);
   process.exit(1);
 }
 
 if (!Number.isInteger(MC_RECONNECT_DELAY_MS) || MC_RECONNECT_DELAY_MS < 1000) {
-  console.error(`[startup] Invalid MC_RECONNECT_DELAY_MS: ${process.env.MC_RECONNECT_DELAY_MS}`);
+  console.error(`[startup] Invalid MC_RECONNECT_DELAY_MS in BOT_CONFIG: ${BOT_CONFIG.MC_RECONNECT_DELAY_MS}`);
   process.exit(1);
 }
 
 if (!Number.isInteger(MC_CONNECT_TIMEOUT_MS) || MC_CONNECT_TIMEOUT_MS < 5000) {
-  console.error(`[startup] Invalid MC_CONNECT_TIMEOUT_MS: ${process.env.MC_CONNECT_TIMEOUT_MS}`);
+  console.error(`[startup] Invalid MC_CONNECT_TIMEOUT_MS in BOT_CONFIG: ${BOT_CONFIG.MC_CONNECT_TIMEOUT_MS}`);
   process.exit(1);
 }
 
 if (!Number.isInteger(MC_FOLLOW_RANGE) || MC_FOLLOW_RANGE < 4) {
-  console.error(`[startup] Invalid MC_FOLLOW_RANGE: ${process.env.MC_FOLLOW_RANGE}`);
+  console.error(`[startup] Invalid MC_FOLLOW_RANGE in BOT_CONFIG: ${BOT_CONFIG.MC_FOLLOW_RANGE}`);
   process.exit(1);
 }
 
@@ -62,7 +78,7 @@ function normalizeBedrockVersion(rawVersion) {
 const MC_VERSION = normalizeBedrockVersion(MC_VERSION_RAW);
 
 function resolveAuthCacheDir() {
-  const customDir = (process.env.MC_AUTH_CACHE_DIR || '').trim();
+  const customDir = String(BOT_CONFIG.MC_AUTH_CACHE_DIR || '').trim();
   if (customDir) return customDir;
 
   const homeDir = os.homedir();
@@ -2213,7 +2229,7 @@ function attachLifecycleHandlers(client, sessionId) {
 
     if (isNotAuthenticatedKick(reason) && MC_OFFLINE) {
       state.authBlocked = true;
-      log('auth', 'Server requires authentication. Set MC_OFFLINE=false in .env and restart the bot.');
+      log('auth', 'Server requires authentication. Set MC_OFFLINE=false in BOT_CONFIG and restart the bot.');
     }
   });
 
@@ -2263,6 +2279,8 @@ function createAndStartClient() {
     offline: MC_OFFLINE,
     version: MC_VERSION,
     connectTimeout: MC_CONNECT_TIMEOUT_MS,
+    skipPing: true,
+    raknetBackend: 'jsp-raknet',
     profilesFolder: AUTH_CACHE_DIR,
     conLog: null,
     onMsaCode: (data) => {
